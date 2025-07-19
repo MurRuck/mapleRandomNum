@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Benford 랜덤 숫자 생성기</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 640px; margin: 40px auto; line-height: 1.5; }
+  label { display: block; margin-top: 12px; }
+  input[type="number"] { width: 120px; }
+  button { margin-top: 20px; padding: 8px 16px; }
+  #output { margin-top: 24px; white-space: pre-wrap; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>보물상자 랜덤 숫자 생성기</h1>
+
+<label>
+  최소값 (min):
+  <input type="number" id="min" value="5000" min="0" max="9999999">
+</label>
+
+<label>
+  최대값 (max):
+  <input type="number" id="max" value="7999" min="0" max="9999999">
+</label>
+
+<label>
+  개수 (count):
+  <input type="number" id="count" value="15" min="1" max="1000">
+</label>
+
+<label>
+  <input type="checkbox" id="avoidOne" checked>
+  벤포드 적용
+</label>
+
+<label>
+  <input type="checkbox" id="retryDup" checked>
+  같은 숫자를  둘 이상 포함 시 한 번만 재추첨
+</label>
+
+<button id="generate">생성</button>
+
+<h2>결과</h2>
+<div id="output"></div>
+
+<script>
+(() => {
+  /** Benford 누적분포(CDF) */
+  const cdf = [0.30103, 0.47712, 0.60206, 0.69897, 0.77815,
+               0.84510, 0.90309, 0.95424, 1.00000];
+  const rng = Math.random;
+
+  function sampleLeadingDigit() {
+    const r = rng();
+    for (let i = 0; i < cdf.length; ++i) {
+      if (r < cdf[i]) return i + 1; // 1~9
+    }
+    return 9; // fallback
+  }
+
+  function digits(n) {
+    return n === 0 ? 1 : Math.floor(Math.log10(n)) + 1;
+  }
+
+  function hasRepeatedDigit(n) {
+    const s = String(n);
+    return new Set(s).size !== s.length;
+  }
+
+  function nextBenford(totalDigits = 7, avoidOne = false) {
+    let leading;
+    do {
+      leading = sampleLeadingDigit();
+    } while (avoidOne && leading === 1);
+
+    const factor = 10 ** (totalDigits - 1);
+    const remainder = Math.floor(rng() * factor); // 0 ~ factor-1
+    return leading * factor + remainder;
+  }
+
+  function nextInRange(min, max, avoidOne = false, retryOnDup = false) {
+    const maxDigits = digits(max);
+    const sampleValid = (checkDup) => {
+      while (true) {
+        const num = nextBenford(maxDigits, avoidOne);
+        if (num >= min && num <= max) {
+          if (!checkDup || !hasRepeatedDigit(num)) return num;
+        }
+      }
+    };
+
+    let candidate = sampleValid(true);
+    if (retryOnDup && hasRepeatedDigit(candidate)) {
+      candidate = sampleValid(false); // 두 번째는 중복 자릿수 허용
+    }
+    return candidate;
+  }
+
+  // UI
+  document.getElementById('generate').addEventListener('click', () => {
+    const min  = Number(document.getElementById('min').value);
+    const max  = Number(document.getElementById('max').value);
+    const cnt  = Number(document.getElementById('count').value);
+    const avoidOne = document.getElementById('avoidOne').checked;
+    const retryDup = document.getElementById('retryDup').checked;
+
+    if (!(0 <= min && min < max && max <= 9_999_999)) {
+      alert('0 ≤ min < max ≤ 9 999 999 이어야 합니다.');
+      return;
+    }
+    if (cnt < 1 || cnt > 1000) {
+      alert('개수는 1~1000 사이로 설정해주세요.');
+      return;
+    }
+
+    const results = [];
+    for (let i = 0; i < cnt; ++i) {
+      results.push(nextInRange(min, max, avoidOne, retryDup));
+    }
+    document.getElementById('output').textContent = results.join('  ');
+  });
+})();
+</script>
+</body>
+</html>
